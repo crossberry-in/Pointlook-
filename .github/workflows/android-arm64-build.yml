@@ -111,26 +111,25 @@ jobs:
 
           build_file = Path("chrome/android/BUILD.gn")
           build_data = build_file.read_text()
-          png_entries = [
+          png_entries = {
               "java/res_chromium_base/mipmap-hdpi/app_icon.png",
               "java/res_chromium_base/mipmap-mdpi/app_icon.png",
               "java/res_chromium_base/mipmap-xhdpi/app_icon.png",
               "java/res_chromium_base/mipmap-xxhdpi/app_icon.png",
               "java/res_chromium_base/mipmap-xxxhdpi/app_icon.png",
-          ]
+          }
+          lines = build_data.splitlines(keepends=True)
           for entry in png_entries:
-              line = f'      "{entry}",\\n'
-              if build_data.count(line) != 1:
+              matches = [i for i, line in enumerate(lines) if entry in line]
+              if len(matches) != 1:
                   raise SystemExit(f"Expected exactly one upstream icon entry: {entry}")
-              build_data = build_data.replace(line, "", 1)
-          icon_anchor = '      "java/res_chromium_base/mipmap-nodpi/layered_app_icon_foreground.xml",\\n'
-          if build_data.count(icon_anchor) != 1:
+              del lines[matches[0]]
+          anchor = "java/res_chromium_base/mipmap-nodpi/layered_app_icon_foreground.xml"
+          matches = [i for i, line in enumerate(lines) if anchor in line]
+          if len(matches) != 1:
               raise SystemExit("Could not find Chromium mipmap-nodpi icon resource anchor")
-          build_data = build_data.replace(
-              icon_anchor,
-              icon_anchor + '      "java/res_chromium_base/mipmap-nodpi/app_icon.xml",\\n',
-              1,
-          )
+          lines.insert(matches[0] + 1, '      "java/res_chromium_base/mipmap-nodpi/app_icon.xml",\\n')
+          build_data = "".join(lines)
           build_file.write_text(build_data)
           print("Applied Pointlook XML launcher icon")
           PY
