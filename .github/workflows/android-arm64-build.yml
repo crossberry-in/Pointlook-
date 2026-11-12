@@ -102,6 +102,8 @@ jobs:
               path.write_text(data.replace(old, new, 1))
               print(f"Applied Pointlook branding: {path}")
           PY
+          mkdir -p scripts
+          cp ../branding/scripts/build_android_arm64.sh scripts/build_android_arm64.sh
 
       - name: Install Linux and Android build dependencies
         working-directory: src
