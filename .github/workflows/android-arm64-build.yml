@@ -1,0 +1,106 @@
+name: Pointlook Android ARM64 Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "pointlook-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pointlook-android-arm64-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Chromium requires a large Linux x86-64 machine. Configure a self-hosted
+    # runner with the labels below; GitHub-hosted runners are not suitable.
+    runs-on: [self-hosted, linux, x64, chromium-android]
+    timeout-minutes: 720
+
+    steps:
+      - name: Check runner capacity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "x86_64" || {
+            echo "::error::Chromium Android builds require an x86-64 Linux host."
+            exit 1
+          }
+          free_gb="$(df -BG "$GITHUB_WORKSPACE" | awk 'NR==2 {gsub(/G/, "", $4); print $4}')"
+          memory_kb="$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
+          memory_gb="$((memory_kb / 1024 / 1024))"
+          echo "Free disk: ${free_gb} GB"
+          echo "RAM: ${memory_gb} GB"
+          test "$free_gb" -ge 100 || {
+            echo "::error::At least 100 GB free disk space is required."
+            exit 1
+          }
+          test "$memory_gb" -ge 16 || {
+            echo "::error::At least 16 GB RAM is required; more is recommended."
+            exit 1
+          }
+          test -n "${DEPOT_TOOLS_PATH:-}" || {
+            echo "::error::Set DEPOT_TOOLS_PATH on the self-hosted runner."
+            exit 1
+          }
+          test -x "$DEPOT_TOOLS_PATH/gclient" || {
+            echo "::error::DEPOT_TOOLS_PATH must point to a valid depot_tools checkout."
+            exit 1
+          }
+          echo "$DEPOT_TOOLS_PATH" >> "$GITHUB_PATH"
+
+      - name: Checkout Pointlook source
+        uses: actions/checkout@v4
+        with:
+          path: src
+          fetch-depth: 1
+
+      - name: Configure Chromium dependency checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .gclient <<'EOF'
+          solutions = [
+            {
+              "name": "src",
+              "url": "https://github.com/crossberry-in/Pointlook-.git",
+              "managed": False,
+              "custom_deps": {},
+              "custom_vars": {},
+            },
+          ]
+          target_os = ["android"]
+          EOF
+
+      - name: Install Linux and Android build dependencies
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo ./build/install-build-deps.sh --android --no-prompt
+
+      - name: Sync Chromium dependencies and run hooks
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          gclient sync --no-history
+          gclient runhooks
+
+      - name: Build Pointlook APK
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/build_android_arm64.sh
+
+      - name: Upload Pointlook APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pointlook-Android-ARM64
+          path: src/out/Pointlook/apks/*.apk
+          if-no-files-found: error
+          retention-days: 30
