@@ -42,7 +42,7 @@ EOF
 
 gclient sync --no-history
 gclient runhooks
-./scripts/build_android_arm64.sh
+bash ./scripts/build_android_arm64.sh
 ```
 
 The script generates a release-mode ARM64 build and invokes the Chromium
