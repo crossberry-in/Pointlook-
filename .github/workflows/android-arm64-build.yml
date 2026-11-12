@@ -52,21 +52,23 @@ jobs:
           }
           echo "$DEPOT_TOOLS_PATH" >> "$GITHUB_PATH"
 
-      - name: Checkout Pointlook source
+      - name: Checkout Pointlook branding changes
         uses: actions/checkout@v4
         with:
-          path: src
+          path: branding
+          ref: pointlook-branding
           fetch-depth: 1
 
-      - name: Configure Chromium dependency checkout
+      - name: Checkout complete Chromium source
         shell: bash
         run: |
           set -euo pipefail
+          git clone --depth 1 --branch 132.0.6834.83 https://chromium.googlesource.com/chromium/src.git src
           cat > .gclient <<'EOF'
           solutions = [
             {
               "name": "src",
-              "url": "https://github.com/crossberry-in/Pointlook-.git",
+              "url": "https://chromium.googlesource.com/chromium/src.git",
               "managed": False,
               "custom_deps": {},
               "custom_vars": {},
@@ -74,6 +76,32 @@ jobs:
           ]
           target_os = ["android"]
           EOF
+
+      - name: Apply Pointlook branding
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path("chrome/android/chrome_public_apk_tmpl.gni"): (
+                  'chrome_public_manifest_package = "org.chromium.chrome"',
+                  'chrome_public_manifest_package = "com.crossberry.pointlook"',
+              ),
+              Path("chrome/android/java/res_chromium_base/values/channel_constants.xml"): (
+                  '<string name="app_name" translatable="false">Chromium</string>',
+                  '<string name="app_name" translatable="false">Pointlook</string>',
+              ),
+          }
+          for path, (old, new) in replacements.items():
+              data = path.read_text()
+              if data.count(old) != 1:
+                  raise SystemExit(f"Expected exactly one branding value in {path}")
+              path.write_text(data.replace(old, new, 1))
+              print(f"Applied Pointlook branding: {path}")
+          PY
 
       - name: Install Linux and Android build dependencies
         working-directory: src
