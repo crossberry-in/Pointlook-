@@ -95,7 +95,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./scripts/build_android_arm64.sh
+          bash ./scripts/build_android_arm64.sh
 
       - name: Upload Pointlook APK
         uses: actions/upload-artifact@v4
