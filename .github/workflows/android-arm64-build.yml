@@ -101,6 +101,38 @@ jobs:
                   raise SystemExit(f"Expected exactly one branding value in {path}")
               path.write_text(data.replace(old, new, 1))
               print(f"Applied Pointlook branding: {path}")
+
+          icon_source = Path("../branding/chrome/android/java/res_chromium_base/mipmap-nodpi/app_icon.xml")
+          icon_target = Path("chrome/android/java/res_chromium_base/mipmap-nodpi/app_icon.xml")
+          if not icon_source.is_file():
+              raise SystemExit(f"Missing Pointlook vector icon: {icon_source}")
+          icon_target.parent.mkdir(parents=True, exist_ok=True)
+          icon_target.write_bytes(icon_source.read_bytes())
+
+          build_file = Path("chrome/android/BUILD.gn")
+          build_data = build_file.read_text()
+          png_entries = [
+              "java/res_chromium_base/mipmap-hdpi/app_icon.png",
+              "java/res_chromium_base/mipmap-mdpi/app_icon.png",
+              "java/res_chromium_base/mipmap-xhdpi/app_icon.png",
+              "java/res_chromium_base/mipmap-xxhdpi/app_icon.png",
+              "java/res_chromium_base/mipmap-xxxhdpi/app_icon.png",
+          ]
+          for entry in png_entries:
+              line = f'      "{entry}",\\n'
+              if build_data.count(line) != 1:
+                  raise SystemExit(f"Expected exactly one upstream icon entry: {entry}")
+              build_data = build_data.replace(line, "", 1)
+          icon_anchor = '      "java/res_chromium_base/mipmap-nodpi/layered_app_icon_foreground.xml",\\n'
+          if build_data.count(icon_anchor) != 1:
+              raise SystemExit("Could not find Chromium mipmap-nodpi icon resource anchor")
+          build_data = build_data.replace(
+              icon_anchor,
+              icon_anchor + '      "java/res_chromium_base/mipmap-nodpi/app_icon.xml",\\n',
+              1,
+          )
+          build_file.write_text(build_data)
+          print("Applied Pointlook XML launcher icon")
           PY
           mkdir -p scripts
           cp ../branding/scripts/build_android_arm64.sh scripts/build_android_arm64.sh
